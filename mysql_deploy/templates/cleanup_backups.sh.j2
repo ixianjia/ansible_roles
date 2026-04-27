@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# MySQL Backup Cleanup Script
+# Usage: ./cleanup_backups.sh
+
+set -e
+
+# Configuration
+BACKUP_DIR="/backup/mysql"
+RETENTION_DAYS=7
+LOG_FILE="/var/log/mysql/cleanup_backups.log"
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+# Check if backup directory exists
+if [ ! -d "$BACKUP_DIR" ]; then
+    log "Backup directory $BACKUP_DIR does not exist"
+    exit 0
+fi
+
+# Clean up old mysqldump backups
+log "Starting cleanup of MySQL backups older than $RETENTION_DAYS days"
+
+# Find and remove old mysqldump backups
+find "$BACKUP_DIR" -name "mysqldump_full_*.tar.gz" -mtime +$RETENTION_DAYS -print -delete | while read file; do
+    log "Deleted old backup: $file"
+done
+
+# Find and remove old xtrabackup directories
+find "$BACKUP_DIR" -name "xtrabackup_*" -mtime +$RETENTION_DAYS -type d -exec rm -rf {} + 2>/dev/null || true
+log "Cleaned up old xtrabackup directories"
+
+# Remove empty directories
+find "$BACKUP_DIR" -type d -empty -delete 2>/dev/null || true
+log "Cleaned up empty directories"
+
+# Calculate disk space
+DISK_USAGE=$(du -sh "$BACKUP_DIR" | cut -f1)
+log "Current backup disk usage: $DISK_USAGE"
+
+log "MySQL backup cleanup completed successfully"
+
+exit 0

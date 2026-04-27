@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# MySQL mysqldump Backup Script
+# Usage: ./mysqldump_backup.sh
+
+set -e
+
+# Configuration
+BACKUP_DIR="/backup/mysql"
+MYSQL_HOST="localhost"
+MYSQL_PORT="3306"
+MYSQL_USER="backup_user"
+MYSQL_PASSWORD="backup_password"
+RETENTION_DAYS=7
+COMPRESS=true
+EMAIL="admin@example.com"
+LOG_FILE="/var/log/mysql/mysqldump_backup.log"
+
+# Create log directory
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+# Error handling
+error_exit() {
+    log "ERROR: $1"
+    echo "MySQL Backup Failed - $1" | mail -s "MySQL Backup Error" "$EMAIL"
+    exit 1
+}
+
+# Check if backup directory exists
+if [ ! -d "$BACKUP_DIR" ]; then
+    error_exit "Backup directory $BACKUP_DIR does not exist"
+fi
+
+# Get list of databases
+log "Starting MySQL mysqldump backup"
+log "Backup directory: $BACKUP_DIR"
+log "Retention period: $RETENTION_DAYS days"
+
+# Get all databases
+DATABASES=$(mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SHOW DATABASES;" | grep -v Database | grep -v information_schema | grep -v performance_schema | grep -v mysql | grep -v sys)
+
+if [ -z "$DATABASES" ]; then
+    error_exit "No databases found"
+fi
+
+# Create timestamp
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_PATH="$BACKUP_DIR/mysqldump_$TIMESTAMP"
+
+# Create backup directory
+mkdir -p "$BACKUP_PATH"
+log "Created backup directory: $BACKUP_PATH"
+
+# Backup each database
+for DB in $DATABASES; do
+    log "Backing up database: $DB"
+    
+    if [ "$COMPRESS" = true ]; then
+        mysqldump -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" \
+            --single-transaction --routines --triggers --events \
+            --hex-blob --opt --compress "$DB" | gzip > "$BACKUP_PATH/${DB}_${TIMESTAMP}.sql.gz"
+    else
+        mysqldump -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" \
+            --single-transaction --routines --triggers --events \
+            --hex-blob --opt "$DB" > "$BACKUP_PATH/${DB}_${TIMESTAMP}.sql"
+    fi
+    
+    if [ $? -eq 0 ]; then
+        log "Successfully backed up $DB"
+    else
+        error_exit "Failed to backup database: $DB"
+    fi
+done
+
+# Create backup manifest
+echo "MySQL mysqldump Backup - $(date)" > "$BACKUP_PATH/manifest.txt"
+echo "Databases backed up:" >> "$BACKUP_PATH/manifest.txt"
+for DB in $DATABASES; do
+    echo "  - $DB" >> "$BACKUP_PATH/manifest.txt"
+done
+
+# Create full backup archive
+cd "$BACKUP_DIR"
+tar -czf "mysqldump_full_$TIMESTAMP.tar.gz" "mysqldump_$TIMESTAMP"
+rm -rf "mysqldump_$TIMESTAMP"
+
+log "Full backup archive created: mysqldump_full_$TIMESTAMP.tar.gz"
+
+# Clean up old backups
+find "$BACKUP_DIR" -name "mysqldump_full_*.tar.gz" -mtime +$RETENTION_DAYS -delete
+log "Cleaned up old backups older than $RETENTION_DAYS days"
+
+# Backup success notification
+log "MySQL mysqldump backup completed successfully"
+echo "MySQL Backup Completed Successfully - $(date)" | mail -s "MySQL Backup Success" "$EMAIL"
+
+exit 0

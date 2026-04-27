@@ -1,0 +1,71 @@
+---
+- name: Configure MySQL XtraBackup Backup
+  hosts: mysql_backup
+  become: yes
+  vars:
+    mysql_root_password: "{{ lookup('env', 'MYSQL_ROOT_PASSWORD') | default('secure_root_password') }}"
+    backup_dir: "/backup/mysql"
+    backup_retention_days: 7
+    backup_type: "full"  # full or incremental
+    backup_compression: true
+    backup_parallel: 4
+    backup_email: "admin@example.com"
+    
+  tasks:
+    - name: Create backup directory
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+        
+    - name: Create backup user for XtraBackup
+      mysql_user:
+        name: "backup_user"
+        password: "backup_password"
+        priv: "RELOAD, LOCK TABLES, REPLICATION CLIENT, EVENT, TRIGGER ON *.* TO 'backup_user'@'localhost'"
+        host: localhost
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        
+    - name: Install XtraBackup dependencies
+      apt:
+        name:
+          - percona-xtrabackup-24
+          - mysql-client
+          - gzip
+          - mailutils
+        state: present
+        
+    - name: Create XtraBackup backup script
+      template:
+        src: xtrabackup_backup.sh.j2
+        dest: "/usr/local/bin/xtrabackup_backup.sh"
+        owner: root
+        group: root
+        mode: '0755'
+        
+    - name: Create cron job for XtraBackup
+      cron:
+        name: "MySQL XtraBackup backup"
+        job: "/usr/local/bin/xtrabackup_backup.sh"
+        minute: "0"
+        hour: "4"
+        user: root
+        cron_file: mysql_xtrabackup_backup
+        
+    - name: Test XtraBackup script
+      command: "/usr/local/bin/xtrabackup_backup.sh --dry-run"
+      register: xtrabackup_test
+      changed_when: false
+      
+    - name: Display XtraBackup test result
+      debug:
+        msg: "XtraBackup test result: {{ xtrabackup_test.stdout }}"
+        
+  handlers:
+    - name: restart cron
+      service:
+        name: cron
+        state: restarted

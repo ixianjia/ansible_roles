@@ -1,0 +1,33 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Install MySQL server
+  package:
+    name: 
+      - mysql-server
+      - mysql-client
+      - rsync
+      - percona-xtrabackup
+    state: present
+
+- name: Create MySQL data directory
+  file:
+    path: /var/lib/mysql
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0755'
+
+- name: Copy MySQL configuration
+  template:
+    src: my.cnf.j2
+    dest: /etc/mysql/my.cnf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart mysql
+
+- name: Start MySQL service
+  service:
+    name: mysql
+    state: started
+    enabled: yes

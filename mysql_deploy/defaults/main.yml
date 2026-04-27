@@ -1,0 +1,27 @@
+#SPDX-License-Identifier: MIT-0
+---
+# MySQL Cluster Configuration
+mysql_version: "8.0"
+mysql_root_password: "secure_root_password"
+mysql_replication_user: "replicator"
+mysql_replication_password: "replication_password"
+mysql_cluster_name: "mysql_cluster"
+mysql_datadir: "/var/lib/mysql"
+mysql_port: 3306
+mysql_bind_address: "0.0.0.0"
+mysql_max_connections: 200
+mysql_innodb_buffer_pool_size: "1G"
+mysql_innodb_log_file_size: "256M"
+
+# Backup Configuration
+backup_dir: "/backup/mysql"
+backup_retention_days: 7
+backup_mysqldump_enabled: true
+backup_xtrabackup_enabled: true
+backup_mysqldump_schedule: "0 2 * * *"
+backup_xtrabackup_schedule: "0 4 * * *"
+
+# Monitoring
+monitoring_enabled: true
+monitoring_user: "monitor"
+monitoring_password: "monitor_password"

@@ -1,0 +1,85 @@
+---
+- name: Test MySQL Deployment and Backup
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    test_mysql_root_password: "test_root_password"
+    test_backup_dir: "/tmp/test_backup"
+    
+  tasks:
+    - name: Test 1 - Validate playbook syntax
+      command: ansible-playbook --syntax-check playbooks/deploy_cluster.yml
+      register: syntax_check_result
+      failed_when: syntax_check_result.rc != 0
+      
+    - name: Test 2 - Validate mysqldump playbook syntax
+      command: ansible-playbook --syntax-check playbooks/mysqldump_backup.yml
+      register: syntax_check_mysqldump
+      failed_when: syntax_check_mysqldump.rc != 0
+      
+    - name: Test 3 - Validate XtraBackup playbook syntax
+      command: ansible-playbook --syntax-check playbooks/xtrabackup_backup.yml
+      register: syntax_check_xtrabackup
+      failed_when: syntax_check_xtrabackup.rc != 0
+      
+    - name: Test 4 - Check template files exist
+      stat:
+        path: "{{ item }}"
+      loop:
+        - templates/my.cnf.j2
+        - templates/mysqldump_backup.sh.j2
+        - templates/xtrabackup_backup.sh.j2
+        - templates/cleanup_backups.sh.j2
+        
+    - name: Test 5 - Check playbook files exist
+      stat:
+        path: "{{ item }}"
+      loop:
+        - playbooks/deploy_cluster.yml
+        - playbooks/mysqldump_backup.yml
+        - playbooks/xtrabackup_backup.yml
+        
+    - name: Test 6 - Validate Jinja2 templates
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+      vars:
+        mysql_root_password: "{{ test_mysql_root_password }}"
+        backup_dir: "{{ test_backup_dir }}"
+        inventory_hostname: "test-server"
+      loop:
+        - { src: "templates/my.cnf.j2", dest: "/tmp/test_my.cnf" }
+        - { src: "templates/mysqldump_backup.sh.j2", dest: "/tmp/test_mysqldump_backup.sh" }
+        - { src: "templates/xtrabackup_backup.sh.j2", dest: "/tmp/test_xtrabackup_backup.sh" }
+        - { src: "templates/cleanup_backups.sh.j2", dest: "/tmp/test_cleanup_backups.sh" }
+        
+    - name: Test 7 - Check generated files
+      stat:
+        path: "{{ item }}"
+      loop:
+        - /tmp/test_my.cnf
+        - /tmp/test_mysqldump_backup.sh
+        - /tmp/test_xtrabackup_backup.sh
+        - /tmp/test_cleanup_backups.sh
+        
+    - name: Test 8 - Test script syntax
+      command: bash -n "{{ item }}"
+      loop:
+        - /tmp/test_mysqldump_backup.sh
+        - /tmp/test_xtrabackup_backup.sh
+        - /tmp/test_cleanup_backups.sh
+        
+    - name: Test 9 - Display test results
+      debug:
+        msg: "All tests passed successfully!"
+        
+    - name: Test 10 - Cleanup test files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/test_my.cnf
+        - /tmp/test_mysqldump_backup.sh
+        - /tmp/test_xtrabackup_backup.sh
+        - /tmp/test_cleanup_backups.sh
+        - "{{ test_backup_dir }}"

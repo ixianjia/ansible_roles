@@ -1,0 +1,87 @@
+---
+- name: Configure MySQL mysqldump Backup
+  hosts: mysql_backup
+  become: yes
+  vars:
+    mysql_root_password: "{{ lookup('env', 'MYSQL_ROOT_PASSWORD') | default('secure_root_password') }}"
+    backup_dir: "/backup/mysql"
+    backup_retention_days: 7
+    backup_databases: []
+    backup_exclude_databases: ["information_schema", "performance_schema", "mysql", "sys"]
+    backup_compression: true
+    backup_email: "admin@example.com"
+    
+  tasks:
+    - name: Create backup directory
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+        
+    - name: Create backup user
+      mysql_user:
+        name: "backup_user"
+        password: "backup_password"
+        priv: "SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON *.* TO 'backup_user'@'localhost'"
+        host: localhost
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        
+    - name: Install backup dependencies
+      apt:
+        name:
+          - mysql-client
+          - gzip
+          - mailutils
+        state: present
+        
+    - name: Create mysqldump backup script
+      template:
+        src: mysqldump_backup.sh.j2
+        dest: "/usr/local/bin/mysqldump_backup.sh"
+        owner: root
+        group: root
+        mode: '0755'
+        
+    - name: Create cron job for mysqldump backup
+      cron:
+        name: "MySQL mysqldump backup"
+        job: "/usr/local/bin/mysqldump_backup.sh"
+        minute: "0"
+        hour: "2"
+        user: root
+        cron_file: mysql_mysqldump_backup
+        
+    - name: Create cleanup script
+      template:
+        src: cleanup_backups.sh.j2
+        dest: "/usr/local/bin/cleanup_backups.sh"
+        owner: root
+        group: root
+        mode: '0755'
+        
+    - name: Create cleanup cron job
+      cron:
+        name: "MySQL backup cleanup"
+        job: "/usr/local/bin/cleanup_backups.sh"
+        minute: "30"
+        hour: "3"
+        user: root
+        cron_file: mysql_backup_cleanup
+        
+    - name: Test backup script
+      command: "/usr/local/bin/mysqldump_backup.sh"
+      register: backup_test
+      changed_when: false
+      
+    - name: Display backup test result
+      debug:
+        msg: "Backup test result: {{ backup_test.stdout }}"
+        
+  handlers:
+    - name: restart cron
+      service:
+        name: cron
+        state: restarted

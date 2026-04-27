@@ -1,0 +1,66 @@
+[mysqld]
+# Basic settings
+user = mysql
+pid-file = /var/run/mysqld/mysqld.pid
+socket = /var/run/mysqld/mysqld.sock
+port = 3306
+datadir = /var/lib/mysql
+tmpdir = /tmp
+tmpdir = /tmp
+
+# Cluster settings
+server-id = {{ inventory_hostname | hash('md5') }}
+log_bin = mysql-bin
+binlog_format = ROW
+binlog_row_image = FULL
+sync_binlog = 1
+innodb_flush_log_at_trx_commit = 1
+
+# Performance tuning
+innodb_buffer_pool_size = 1G
+innodb_log_file_size = 256M
+innodb_log_buffer_size = 8M
+innodb_flush_method = O_DIRECT
+innodb_thread_concurrency = 0
+innodb_read_io_threads = 8
+innodb_write_io_threads = 8
+
+# Replication settings
+log_slave_updates = 1
+relay_log = relay-bin
+relay_log_index = relay-bin.index
+slave_net_timeout = 60
+master_info_repository = TABLE
+relay_log_info_repository = TABLE
+
+# Security settings
+bind-address = 0.0.0.0
+skip-name-resolve
+max_connections = 200
+max_connect_errors = 100000
+
+# Logging
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/mysql-slow.log
+long_query_time = 2
+log_error = /var/log/mysql/error.log
+log_warnings = 2
+
+[mysqld_safe]
+log-error = /var/log/mysql/error.log
+pid-file = /var/run/mysqld/mysqld.pid
+
+[client]
+port = 3306
+socket = /var/run/mysqld/mysqld.sock
+
+[mysql]
+default-character-set = utf8mb4
+
+[mysqldump]
+quick
+quote-names
+max_allowed_packet = 16M
+
+[mysqladmin]
+socket = /var/run/mysqld/mysqld.sock

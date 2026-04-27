@@ -1,0 +1,194 @@
+#!/bin/bash
+
+# MySQL XtraBackup Backup Script
+# Usage: ./xtrabackup_backup.sh [options]
+
+set -e
+
+# Configuration
+BACKUP_DIR="/backup/mysql"
+MYSQL_HOST="localhost"
+MYSQL_PORT="3306"
+MYSQL_USER="backup_user"
+MYSQL_PASSWORD="backup_password"
+RETENTION_DAYS=7
+BACKUP_TYPE="full"
+COMPRESS=true
+PARALLEL=4
+EMAIL="admin@example.com"
+LOG_FILE="/var/log/mysql/xtrabackup_backup.log"
+INCR_BASE_DIR="$BACKUP_DIR/incremental"
+
+# Parse command line arguments
+DRY_RUN=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --full)
+            BACKUP_TYPE="full"
+            shift
+            ;;
+        --incremental)
+            BACKUP_TYPE="incremental"
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [options]"
+            echo "Options:"
+            echo "  --dry-run    Test the backup without actually running it"
+            echo "  --full       Perform full backup (default)"
+            echo "  --incremental  Perform incremental backup"
+            echo "  --help       Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Create log directory
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+# Error handling
+error_exit() {
+    log "ERROR: $1"
+    if [ "$DRY_RUN" = false ]; then
+        echo "MySQL XtraBackup Failed - $1" | mail -s "MySQL XtraBackup Error" "$EMAIL"
+    fi
+    exit 1
+}
+
+# Check if backup directory exists
+if [ ! -d "$BACKUP_DIR" ]; then
+    error_exit "Backup directory $BACKUP_DIR does not exist"
+fi
+
+# Check if xtrabackup is installed
+if ! command -v xtrabackup &> /dev/null; then
+    error_exit "xtrabackup is not installed"
+fi
+
+# Create timestamp
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_PATH="$BACKUP_DIR/xtrabackup_$TIMESTAMP"
+
+# Create backup directory
+mkdir -p "$BACKUP_PATH"
+log "Created backup directory: $BACKUP_PATH"
+
+# XtraBackup common options
+XTRABACKUP_OPTS="--host=$MYSQL_HOST --port=$MYSQL_PORT --user=$MYSQL_USER --password=$MYSQL_PASSWORD"
+XTRABACKUP_OPTS="$XTRABACKUP_OPTS --parallel=$PARALLEL --safe-slave-backup"
+XTRABACKUP_OPTS="$XTRABACKUP_OPTS --no-lock --slave-info"
+
+if [ "$COMPRESS" = true ]; then
+    XTRABACKUP_OPTS="$XTRABACKUP_OPTS --compress"
+fi
+
+log "Starting MySQL XtraBackup backup"
+log "Backup type: $BACKUP_TYPE"
+log "Backup directory: $BACKUP_PATH"
+log "Retention period: $RETENTION_DAYS days"
+
+if [ "$BACKUP_TYPE" = "full" ]; then
+    log "Performing full backup"
+    
+    if [ "$DRY_RUN" = true ]; then
+        log "DRY RUN: Would execute: xtrabackup $XTRABACKUP_OPTS --backup --target-dir=$BACKUP_PATH"
+        exit 0
+    fi
+    
+    # Perform full backup
+    xtrabackup $XTRABACKUP_OPTS --backup --target-dir="$BACKUP_PATH" || error_exit "Full backup failed"
+    
+    # Prepare backup
+    log "Preparing backup"
+    xtrabackup --prepare --target-dir="$BACKUP_PATH" || error_exit "Backup preparation failed"
+    
+    # Create backup info file
+    echo "MySQL XtraBackup Full Backup - $(date)" > "$BACKUP_PATH/backup_info.txt"
+    echo "Backup Type: Full" >> "$BACKUP_PATH/backup_info.txt"
+    echo "Backup Time: $TIMESTAMP" >> "$BACKUP_PATH/backup_info.txt"
+    echo "Data Size: $(du -sh $BACKUP_PATH | cut -f1)" >> "$BACKUP_PATH/backup_info.txt"
+    
+elif [ "$BACKUP_TYPE" = "incremental" ]; then
+    log "Performing incremental backup"
+    
+    # Find the latest full backup
+    LATEST_FULL=$(ls -td "$BACKUP_DIR"/xtrabackup_* | head -1)
+    
+    if [ -z "$LATEST_FULL" ] || [ ! -d "$LATEST_FULL" ]; then
+        error_exit "No full backup found for incremental backup"
+    fi
+    
+    # Create incremental base directory
+    mkdir -p "$INCR_BASE_DIR"
+    
+    if [ "$DRY_RUN" = true ]; then
+        log "DRY RUN: Would execute: xtrabackup $XTRABACKUP_OPTS --backup --target-dir=$BACKUP_PATH --incremental-basedir=$LATEST_FULL"
+        exit 0
+    fi
+    
+    # Perform incremental backup
+    xtrabackup $XTRABACKUP_OPTS --backup --target-dir="$BACKUP_PATH" --incremental-basedir="$LATEST_FULL" || error_exit "Incremental backup failed"
+    
+    # Prepare backup
+    log "Preparing incremental backup"
+    xtrabackup --prepare --apply-log-only --target-dir="$LATEST_FULL" --incremental-dir="$BACKUP_PATH" || error_exit "Incremental backup preparation failed"
+    
+    # Create backup info file
+    echo "MySQL XtraBackup Incremental Backup - $(date)" > "$BACKUP_PATH/backup_info.txt"
+    echo "Backup Type: Incremental" >> "$BACKUP_PATH/backup_info.txt"
+    echo "Backup Time: $TIMESTAMP" >> "$BACKUP_PATH/backup_info.txt"
+    echo "Based on: $LATEST_FULL" >> "$BACKUP_PATH/backup_info.txt"
+    echo "Data Size: $(du -sh $BACKUP_PATH | cut -f1)" >> "$BACKUP_PATH/backup_info.txt"
+    
+else
+    error_exit "Invalid backup type: $BACKUP_TYPE"
+fi
+
+# Compress backup if requested
+if [ "$COMPRESS" = true ] && [ "$DRY_RUN" = false ]; then
+    log "Compressing backup"
+    tar -czf "$BACKUP_DIR/xtrabackup_${BACKUP_TYPE}_${TIMESTAMP}.tar.gz" -C "$BACKUP_DIR" "xtrabackup_$TIMESTAMP"
+    rm -rf "$BACKUP_PATH"
+    log "Compressed backup created: xtrabackup_${BACKUP_TYPE}_${TIMESTAMP}.tar.gz"
+fi
+
+# Clean up old backups
+if [ "$DRY_RUN" = false ]; then
+    log "Cleaning up old backups"
+    
+    # Remove old full backups
+    find "$BACKUP_DIR" -name "xtrabackup_full_*.tar.gz" -mtime +$RETENTION_DAYS -delete
+    
+    # Remove old incremental backup directories
+    find "$BACKUP_DIR" -name "xtrabackup_incremental_*" -mtime +$RETENTION_DAYS -type d -exec rm -rf {} + 2>/dev/null || true
+    
+    # Remove empty directories
+    find "$BACKUP_DIR" -type d -empty -delete 2>/dev/null || true
+    
+    log "Cleaned up backups older than $RETENTION_DAYS days"
+fi
+
+# Calculate disk space
+DISK_USAGE=$(du -sh "$BACKUP_DIR" | cut -f1)
+log "Current backup disk usage: $DISK_USAGE"
+
+# Backup success notification
+if [ "$DRY_RUN" = false ]; then
+    log "MySQL XtraBackup $BACKUP_TYPE backup completed successfully"
+    echo "MySQL XtraBackup $BACKUP_TYPE Backup Completed Successfully - $(date)" | mail -s "MySQL XtraBackup Success" "$EMAIL"
+fi
+
+exit 0
