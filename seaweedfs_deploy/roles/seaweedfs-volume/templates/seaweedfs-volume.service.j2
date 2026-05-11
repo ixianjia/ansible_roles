@@ -1,0 +1,31 @@
+[Unit]
+Description=SeaweedFS Volume Server
+Documentation=https://github.com/seaweedfs/seaweedfs
+After=network.target
+
+[Service]
+Type=simple
+User={{ seaweedfs_user }}
+Group={{ seaweedfs_group }}
+ExecStart={{ seaweedfs_home }}/weed volume \
+  -dir={{ data_dir }}/volume \
+  -max=100 \
+  -mserver={{ master_peers }} \
+  -port={{ volume_port }} \
+  -ip={{ ansible_host }} \
+  -dataCenter=dc1 \
+  -rack={{ rack | default('rack1') }} \
+{% if tls_enabled %}
+  -certFile={{ tls_cert_path }} \
+  -keyFile={{ tls_key_path }} \
+{% endif %}
+  -jwtSigningKey={{ jwt_signing_key }} \
+  -jwtReadSigningKey={{ jwt_read_signing_key }} \
+  -jwtWriteSigningKey={{ jwt_write_signing_key }}
+Restart=always
+RestartSec=5
+LimitNOFILE=1048576
+LimitNPROC=65536
+
+[Install]
+WantedBy=multi-user.target

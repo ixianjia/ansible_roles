@@ -1,0 +1,74 @@
+---
+- name: 创建 seaweedfs 用户和组
+  group:
+    name: "{{ seaweedfs_group }}"
+    state: present
+  become: yes
+
+- name: 创建 seaweedfs 用户
+  user:
+    name: "{{ seaweedfs_user }}"
+    group: "{{ seaweedfs_group }}"
+    shell: /sbin/nologin
+    create_home: no
+    state: present
+  become: yes
+
+- name: 创建数据目录
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ seaweedfs_user }}"
+    group: "{{ seaweedfs_group }}"
+    mode: 0755
+  loop:
+    - "{{ seaweedfs_home }}"
+    - "{{ data_dir }}"
+    - "{{ data_dir }}/master"
+    - "{{ data_dir }}/volume"
+    - "{{ data_dir }}/filer"
+    - /etc/seaweedfs/ssl
+  become: yes
+
+- name: 下载 SeaweedFS 二进制
+  unarchive:
+    src: "{{ seaweedfs_download_url }}"
+    dest: "{{ seaweedfs_home }}"
+    remote_src: yes
+    owner: "{{ seaweedfs_user }}"
+    group: "{{ seaweedfs_group }}"
+    mode: 0755
+  become: yes
+
+- name: 创建 weed 软链接
+  file:
+    src: "{{ seaweedfs_home }}/weed"
+    dest: /usr/local/bin/weed
+    state: link
+  become: yes
+
+- name: 系统参数调优
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  loop: "{{ sysctl_settings | dict2items }}"
+  become: yes
+
+- name: 配置 limits
+  pam_limits:
+    domain: "{{ seaweedfs_user }}"
+    limit_type: soft
+    limit_item: nofile
+    value: 1048576
+  become: yes
+
+- name: 配置 limits hard
+  pam_limits:
+    domain: "{{ seaweedfs_user }}"
+    limit_type: hard
+    limit_item: nofile
+    value: 1048576
+  become: yes

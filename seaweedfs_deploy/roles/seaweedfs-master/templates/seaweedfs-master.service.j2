@@ -1,0 +1,31 @@
+[Unit]
+Description=SeaweedFS Master
+Documentation=https://github.com/seaweedfs/seaweedfs
+After=network.target
+
+[Service]
+Type=simple
+User={{ seaweedfs_user }}
+Group={{ seaweedfs_group }}
+ExecStart={{ seaweedfs_home }}/weed master \
+  -ip={{ ansible_host }} \
+  -port={{ master_port }} \
+  -peers={{ master_peers }} \
+  -mdir={{ data_dir }}/master \
+  -volumeSizeLimitMB={{ volume_size_limit_mb }} \
+  -defaultReplication={{ default_replication }} \
+  -raftHashicorp \
+{% if tls_enabled %}
+  -certFile={{ tls_cert_path }} \
+  -keyFile={{ tls_key_path }} \
+{% endif %}
+  -jwtSigningKey={{ jwt_signing_key }} \
+  -jwtReadSigningKey={{ jwt_read_signing_key }} \
+  -jwtWriteSigningKey={{ jwt_write_signing_key }}
+Restart=always
+RestartSec=5
+LimitNOFILE=1048576
+LimitNPROC=65536
+
+[Install]
+WantedBy=multi-user.target

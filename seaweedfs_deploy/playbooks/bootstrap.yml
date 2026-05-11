@@ -1,0 +1,15 @@
+---
+- name: 部署前检查
+  hosts: all
+  gather_facts: yes
+  tasks:
+    - name: 检查操作系统
+      fail:
+        msg: "仅支持 Ubuntu 20.04+ / CentOS 7+ / Debian 10+"
+      when: >
+        ansible_os_family not in ['Debian', 'RedHat']
+
+    - name: 检查磁盘空间
+      fail:
+        msg: "数据目录所在磁盘剩余空间不足 50G"
+      when: ansible_mounts | selectattr('mount', 'equalto', '/data') | map(attribute='size_available') | first | default(0) < 50 * 1024 * 1024 * 1024

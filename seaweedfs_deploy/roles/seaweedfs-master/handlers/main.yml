@@ -1,0 +1,7 @@
+---
+- name: restart seaweedfs-master
+  systemd:
+    name: seaweedfs-master
+    state: restarted
+    daemon_reload: yes
+  become: yes

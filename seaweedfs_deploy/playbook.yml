@@ -1,0 +1,35 @@
+---
+- name: 包含公共基础角色
+  import_playbook: playbooks/bootstrap.yml
+
+- name: 部署 Master 集群
+  hosts: masters
+  gather_facts: yes
+  roles:
+    - seaweedfs-common
+    - seaweedfs-master
+  tags: [master]
+
+- name: 部署 Volume Server
+  hosts: volumes
+  gather_facts: yes
+  roles:
+    - seaweedfs-common
+    - seaweedfs-volume
+  tags: [volume]
+
+- name: 部署 Filer
+  hosts: filers
+  gather_facts: yes
+  roles:
+    - seaweedfs-common
+    - seaweedfs-filer
+  tags: [filer]
+
+- name: 部署 S3 Gateway
+  hosts: s3gws
+  gather_facts: yes
+  roles:
+    - seaweedfs-common
+    - seaweedfs-s3gw
+  tags: [s3gw]

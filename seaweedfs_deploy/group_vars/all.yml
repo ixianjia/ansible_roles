@@ -1,0 +1,43 @@
+---
+# 全局变量
+seaweedfs_version: "3.85"
+seaweedfs_download_url: "https://github.com/seaweedfs/seaweedfs/releases/download/{{ seaweedfs_version }}/linux_amd64.tar.gz"
+seaweedfs_user: seaweedfs
+seaweedfs_group: seaweedfs
+seaweedfs_home: /opt/seaweedfs
+data_dir: /data/seaweedfs
+
+# 集群节点
+master_nodes:
+  - 10.0.1.11
+  - 10.0.1.12
+  - 10.0.1.13
+master_peers: "10.0.1.11:9333,10.0.1.12:9333,10.0.1.13:9333"
+master_port: 9333
+volume_port: 8080
+filer_port: 8888
+s3_port: 8333
+
+# 副本策略
+default_replication: "010"
+volume_size_limit_mb: 30000
+
+# JWT 密钥（生产环境应通过 Ansible Vault 加密）
+jwt_signing_key: "change-me-to-a-secure-256bit-key"
+jwt_read_signing_key: "change-me-read-key-256bit"
+jwt_write_signing_key: "change-me-write-key-256bit"
+
+# S3 配置
+s3_domain: s3.example.com
+s3_config_path: /etc/seaweedfs/s3.json
+
+# TLS
+tls_enabled: true
+tls_cert_path: /etc/seaweedfs/ssl/cert.pem
+tls_key_path: /etc/seaweedfs/ssl/key.pem
+
+# 系统调优
+sysctl_settings:
+  vm.max_map_count: 262144
+  net.core.somaxconn: 65535
+  fs.file-max: 1048576

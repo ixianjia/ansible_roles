@@ -1,0 +1,23 @@
+---
+- name: 生成 TLS 自签名证书
+  command: >
+    openssl req -x509 -nodes -days 3650 -newkey rsa:4096
+    -keyout {{ tls_key_path }}
+    -out {{ tls_cert_path }}
+    -subj "/CN=seaweedfs.{{ ansible_fqdn }}"
+  args:
+    creates: "{{ tls_cert_path }}"
+  become: yes
+  when: tls_enabled
+
+- name: 设置证书权限
+  file:
+    path: "{{ item }}"
+    owner: "{{ seaweedfs_user }}"
+    group: "{{ seaweedfs_group }}"
+    mode: 0600
+  loop:
+    - "{{ tls_key_path }}"
+    - "{{ tls_cert_path }}"
+  become: yes
+  when: tls_enabled

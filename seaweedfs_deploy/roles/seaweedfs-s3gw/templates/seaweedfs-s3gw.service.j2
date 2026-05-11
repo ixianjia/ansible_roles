@@ -1,0 +1,27 @@
+[Unit]
+Description=SeaweedFS S3 Gateway
+Documentation=https://github.com/seaweedfs/seaweedfs
+After=network.target
+
+[Service]
+Type=simple
+User={{ seaweedfs_user }}
+Group={{ seaweedfs_group }}
+ExecStart={{ seaweedfs_home }}/weed s3 \
+  -port={{ s3_port }} \
+  -domainName={{ s3_domain }} \
+  -filer={{ master_peers }} \
+  -config={{ s3_config_path }} \
+{% if tls_enabled %}
+  -keyFile={{ tls_key_path }} \
+  -certFile={{ tls_cert_path }} \
+{% endif %}
+  -jwtSigningKey={{ jwt_signing_key }} \
+  -jwtReadSigningKey={{ jwt_read_signing_key }} \
+  -jwtWriteSigningKey={{ jwt_write_signing_key }}
+Restart=always
+RestartSec=5
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

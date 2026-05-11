@@ -1,0 +1,18 @@
+---
+- name: 配置 Master systemd service
+  template:
+    src: seaweedfs-master.service.j2
+    dest: /etc/systemd/system/seaweedfs-master.service
+    owner: root
+    group: root
+    mode: 0644
+  become: yes
+  notify: restart seaweedfs-master
+
+- name: 启动并启用 Master 服务
+  systemd:
+    name: seaweedfs-master
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: yes

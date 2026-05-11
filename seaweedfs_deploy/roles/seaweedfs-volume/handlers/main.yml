@@ -1,0 +1,7 @@
+---
+- name: restart seaweedfs-volume
+  systemd:
+    name: seaweedfs-volume
+    state: restarted
+    daemon_reload: yes
+  become: yes

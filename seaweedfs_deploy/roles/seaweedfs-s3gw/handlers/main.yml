@@ -1,0 +1,7 @@
+---
+- name: restart seaweedfs-s3gw
+  systemd:
+    name: seaweedfs-s3gw
+    state: restarted
+    daemon_reload: yes
+  become: yes
