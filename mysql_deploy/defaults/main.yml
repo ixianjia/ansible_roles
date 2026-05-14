@@ -1,27 +1,44 @@
 #SPDX-License-Identifier: MIT-0
 ---
-# MySQL Cluster Configuration
-mysql_version: "8.0"
-mysql_root_password: "secure_root_password"
-mysql_replication_user: "replicator"
-mysql_replication_password: "replication_password"
-mysql_cluster_name: "mysql_cluster"
-mysql_datadir: "/var/lib/mysql"
-mysql_port: 3306
-mysql_bind_address: "0.0.0.0"
-mysql_max_connections: 200
-mysql_innodb_buffer_pool_size: "1G"
-mysql_innodb_log_file_size: "256M"
+# 部署方式: binary（二进制包）或 package（系统包管理器）
+mysqlInstallMethod: "binary"
 
-# Backup Configuration
-backup_dir: "/backup/mysql"
-backup_retention_days: 7
-backup_mysqldump_enabled: true
-backup_xtrabackup_enabled: true
-backup_mysqldump_schedule: "0 2 * * *"
-backup_xtrabackup_schedule: "0 4 * * *"
+# MySQL 版本信息（二进制部署用）
+mysqlVersion: "8.0.36"
+mysqlBinaryPackage: "mysql-{{ mysqlVersion }}-linux-glibc2.12-x86_64.tar.xz"
+mysqlDirName: "mysql-{{ mysqlVersion }}-linux-glibc2.12-x86_64"
+mysqlBaseDir: "/usr/local/mysql"
 
-# Monitoring
-monitoring_enabled: true
-monitoring_user: "monitor"
-monitoring_password: "monitor_password"
+# 目录
+mysqlDataDir: "/var/lib/mysql"
+mysqlLogDir: "/var/log/mysql"
+mysqlRunDir: "/var/run/mysqld"
+mysqlTmpDir: "/tmp"
+
+# 端口与网络
+mysqlPort: 3306
+mysqlBindAddress: "0.0.0.0"
+
+# 用户认证
+mysqlRootPassword: "secure_root_password"
+mysqlReplicationUser: "replicator"
+mysqlReplicationPassword: "replication_password"
+mysqlClusterName: "mysql_cluster"
+
+# 性能
+mysqlMaxConnections: 200
+mysqlInnodbBufferPoolSize: "1G"
+mysqlInnodbLogFileSize: "256M"
+
+# 备份
+backupDir: "/backup/mysql"
+backupRetentionDays: 7
+backupMysqldumpEnabled: true
+backupXtrabackupEnabled: true
+backupMysqldumpSchedule: "0 2 * * *"
+backupXtrabackupSchedule: "0 4 * * *"
+
+# 监控
+monitoringEnabled: true
+monitoringUser: "monitor"
+monitoringPassword: "monitor_password"

@@ -1,0 +1,45 @@
+[Unit]
+Description=MySQL Server {{ mysqlVersion }}
+Documentation=man:mysqld(8)
+Documentation=http://dev.mysql.com/doc/refman/en
+After=network.target
+After=syslog.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+User=mysql
+Group=mysql
+Type=notify
+
+# 如果 mysqld 进程异常退出，立即重启
+Restart=on-failure
+RestartPreventExitStatus=1
+
+# 安全限制
+PrivateTmp=false
+LimitNOFILE=65535
+LimitNPROC=65535
+LimitMEMLOCK=infinity
+
+# MySQL 环境变量
+Environment=LD_PRELOAD=
+Environment=MYSQL_HOME={{ mysqlBaseDir }}
+Environment=INSTANCE=mysql
+
+# mysqld 启动命令
+ExecStartPre={{ mysqlBaseDir }}/bin/mysqld_pre_systemd
+ExecStart={{ mysqlBaseDir }}/bin/mysqld \
+  --basedir={{ mysqlBaseDir }} \
+  --datadir={{ mysqlDataDir }} \
+  --pid-file={{ mysqlRunDir }}/mysqld.pid \
+  --socket={{ mysqlRunDir }}/mysqld.sock \
+  --plugin-dir={{ mysqlBaseDir }}/lib/plugin \
+  --log-error={{ mysqlLogDir }}/error.log \
+  --user=mysql
+
+ExecStop={{ mysqlBaseDir }}/bin/mysqladmin shutdown --socket={{ mysqlRunDir }}/mysqld.sock
+
+# 超时设置
+TimeoutSec=300

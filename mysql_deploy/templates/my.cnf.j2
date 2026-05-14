@@ -1,66 +1,105 @@
 [mysqld]
-# Basic settings
+# 基础设置
 user = mysql
-pid-file = /var/run/mysqld/mysqld.pid
-socket = /var/run/mysqld/mysqld.sock
-port = 3306
-datadir = /var/lib/mysql
-tmpdir = /tmp
-tmpdir = /tmp
+port = {{ mysqlPort }}
+basedir = {{ mysqlBaseDir }}
+datadir = {{ mysqlDataDir }}
+socket = {{ mysqlRunDir }}/mysqld.sock
+pid-file = {{ mysqlRunDir }}/mysqld.pid
+tmpdir = {{ mysqlTmpDir }}
 
-# Cluster settings
+# 集群/复制设置
 server-id = {{ inventory_hostname | hash('md5') }}
 log_bin = mysql-bin
 binlog_format = ROW
 binlog_row_image = FULL
 sync_binlog = 1
 innodb_flush_log_at_trx_commit = 1
+log_slave_updates = 1
+relay_log = relay-bin
+relay_log_index = relay-bin.index
+relay_log_info_repository = TABLE
+master_info_repository = TABLE
+slave_net_timeout = 60
+skip_slave_start
+expire_logs_days = 7
+binlog_expire_logs_seconds = 604800
 
-# Performance tuning
-innodb_buffer_pool_size = 1G
-innodb_log_file_size = 256M
+# 性能调优
+innodb_buffer_pool_size = {{ mysqlInnodbBufferPoolSize }}
+innodb_log_file_size = {{ mysqlInnodbLogFileSize }}
 innodb_log_buffer_size = 8M
 innodb_flush_method = O_DIRECT
 innodb_thread_concurrency = 0
 innodb_read_io_threads = 8
 innodb_write_io_threads = 8
+innodb_data_file_path = ibdata1:12M:autoextend
+innodb_autoinc_lock_mode = 2
 
-# Replication settings
-log_slave_updates = 1
-relay_log = relay-bin
-relay_log_index = relay-bin.index
-slave_net_timeout = 60
-master_info_repository = TABLE
-relay_log_info_repository = TABLE
+# 字符集
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
 
-# Security settings
-bind-address = 0.0.0.0
+# 安全
+bind-address = {{ mysqlBindAddress }}
 skip-name-resolve
-max_connections = 200
+max_connections = {{ mysqlMaxConnections }}
 max_connect_errors = 100000
+skip-external-locking
 
-# Logging
+# 日志
 slow_query_log = 1
-slow_query_log_file = /var/log/mysql/mysql-slow.log
+slow_query_log_file = {{ mysqlLogDir }}/mysql-slow.log
 long_query_time = 2
-log_error = /var/log/mysql/error.log
+log_error = {{ mysqlLogDir }}/error.log
 log_warnings = 2
+general_log = 0
 
-[mysqld_safe]
-log-error = /var/log/mysql/error.log
-pid-file = /var/run/mysqld/mysqld.pid
+# 表名大小写（0=区分, 1=不区分）
+lower_case_table_names = 1
+
+# 连接
+max_allowed_packet = 64M
+interactive_timeout = 28800
+wait_timeout = 28800
+connect_timeout = 10
+
+# 临时表
+tmp_table_size = 64M
+max_heap_table_size = 64M
+
+# 排序
+sort_buffer_size = 4M
+join_buffer_size = 4M
+read_buffer_size = 2M
+read_rnd_buffer_size = 4M
+
+# MyISAM（兼容）
+myisam_recover_options = BACKUP
+key_buffer_size = 64M
+table_open_cache = 2000
+thread_cache_size = 256
 
 [client]
-port = 3306
-socket = /var/run/mysqld/mysqld.sock
+port = {{ mysqlPort }}
+socket = {{ mysqlRunDir }}/mysqld.sock
+default-character-set = utf8mb4
 
 [mysql]
 default-character-set = utf8mb4
+prompt = "\\u@\\h [\\d]>\\_"
 
 [mysqldump]
 quick
 quote-names
-max_allowed_packet = 16M
+max_allowed_packet = 64M
+default-character-set = utf8mb4
 
 [mysqladmin]
-socket = /var/run/mysqld/mysqld.sock
+socket = {{ mysqlRunDir }}/mysqld.sock
+
+[myisamchk]
+key_buffer_size = 32M
+sort_buffer_size = 32M
+read_buffer = 2M
+write_buffer = 2M

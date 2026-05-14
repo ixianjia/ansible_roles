@@ -1,105 +1,110 @@
 ---
-- name: Deploy MySQL Cluster
+- name: Deploy MySQL Cluster（二进制包方式）
   hosts: mysql_cluster
   become: yes
   vars:
-    mysql_version: "8.0"
-    mysql_root_password: "secure_root_password"
-    mysql_replication_user: "replicator"
-    mysql_replication_password: "replication_password"
-    mysql_cluster_name: "mysql_cluster"
-    mysql_datadir: "/var/lib/mysql"
-    mysql_port: 3306
-    
+    mysqlVersion: "8.0.36"
+    mysqlRootPassword: "secure_root_password"
+    mysqlReplicationUser: "replicator"
+    mysqlReplicationPassword: "replication_password"
+    mysqlDataDir: "/var/lib/mysql"
+    mysqlPort: 3306
+    mysqlRunDir: "/var/run/mysqld"
+
   tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-        
-    - name: Install required packages
-      apt:
-        name:
-          - mysql-server-{{ mysql_version }}
-          - mysql-client-{{ mysql_version }}
-          - mysql-common
-          - libmysqlclient{{ mysql_version | replace('.', '') }}-dev
-          - rsync
-          - percona-xtrabackup
-        state: present
-        
-    - name: Create MySQL data directory
-      file:
-        path: "{{ mysql_datadir }}"
-        state: directory
-        owner: mysql
-        group: mysql
-        mode: '0755'
-        
-    - name: Configure MySQL server
-      template:
-        src: my.cnf.j2
-        dest: /etc/mysql/my.cnf
-        owner: root
-        group: root
-        mode: '0644'
-      notify: Restart MySQL
-        
-    - name: Start MySQL service
-      service:
-        name: mysql
-        state: started
-        enabled: yes
-        
-    - name: Set root password
+    - name: 导入 MySQL 二进制部署任务
+      import_tasks: ../tasks/main.yml
+
+    # ──────────────────────────────────────────
+    # 主从复制配置
+    # ──────────────────────────────────────────
+
+    - name: 创建复制用户
       mysql_user:
-        name: root
-        password: "{{ mysql_root_password }}"
-        check_implicit_admin: yes
-        login_user: root
-        login_password: ""
-        
-    - name: Create replication user
-      mysql_user:
-        name: "{{ mysql_replication_user }}"
-        password: "{{ mysql_replication_password }}"
+        name: "{{ mysqlReplicationUser }}"
+        password: "{{ mysqlReplicationPassword }}"
         priv: "REPLICATION SLAVE ON *.*"
         host: '%'
         login_user: root
-        login_password: "{{ mysql_root_password }}"
-        
-    - name: Get master status
-      command: mysql -u root -p{{ mysql_root_password }} -e "SHOW MASTER STATUS;"
-      register: master_status
+        login_password: "{{ mysqlRootPassword }}"
+        login_unix_socket: "{{ mysqlRunDir }}/mysqld.sock"
       when: inventory_hostname in groups['mysql_masters']
-      
-    - name: Configure slave servers
+
+    - name: 获取主库 binlog 状态
+      command: >
+        {{ mysqlBaseDir | default('/usr/local/mysql') }}/bin/mysql
+        -u root -p'{{ mysqlRootPassword }}'
+        -e "SHOW MASTER STATUS\G"
+      register: masterStatus
+      when: inventory_hostname in groups['mysql_masters']
+
+    - name: 设置主库信息为从库变量
+      set_fact:
+        masterLogFile: "{{ masterStatus.stdout | regex_search('File: (\\S+)', '\\1') | first | default('') }}"
+        masterLogPos: "{{ masterStatus.stdout | regex_search('Position: (\\d+)', '\\1') | first | default('') }}"
+      when:
+        - inventory_hostname in groups['mysql_masters']
+        - masterStatus.stdout | length > 0
+
+    - name: 在从库上配置复制链路
       mysql_replication:
         mode: change_master
-        master_host: "{{ item }}"
-        master_user: "{{ mysql_replication_user }}"
-        master_password: "{{ mysql_replication_password }}"
-        master_log_file: "{{ master_status.stdout | regex_search('File: (\\S+)') | first }}"
-        master_log_pos: "{{ master_status.stdout | regex_search('Position: (\\d+)') | first }}"
-      loop: "{{ groups['mysql_masters'] }}"
-      when: inventory_hostname in groups['mysql_slaves'] and item != inventory_hostname
-      
-    - name: Start slave replication
+        master_host: "{{ hostvars[groups['mysql_masters'][0]]['ansible_host'] | default(groups['mysql_masters'][0]) }}"
+        master_user: "{{ mysqlReplicationUser }}"
+        master_password: "{{ mysqlReplicationPassword }}"
+        master_log_file: "{{ hostvars[groups['mysql_masters'][0]]['masterLogFile'] }}"
+        master_log_pos: "{{ hostvars[groups['mysql_masters'][0]]['masterLogPos'] | int }}"
+        login_user: root
+        login_password: "{{ mysqlRootPassword }}"
+        login_unix_socket: "{{ mysqlRunDir }}/mysqld.sock"
+      when: inventory_hostname in groups['mysql_slaves']
+
+    - name: 启动从库复制
       mysql_replication:
         mode: start_slave
+        login_user: root
+        login_password: "{{ mysqlRootPassword }}"
+        login_unix_socket: "{{ mysqlRunDir }}/mysqld.sock"
       when: inventory_hostname in groups['mysql_slaves']
-      
-    - name: Check slave status
-      command: mysql -u root -p{{ mysql_root_password }} -e "SHOW SLAVE STATUS\\G;"
-      register: slave_status
+
+    - name: 等待复制同步
+      pause:
+        seconds: 3
       when: inventory_hostname in groups['mysql_slaves']
-      
-    - name: Display cluster information
+
+    - name: 检查从库复制状态
+      command: >
+        {{ mysqlBaseDir | default('/usr/local/mysql') }}/bin/mysql
+        -u root -p'{{ mysqlRootPassword }}'
+        -e "SHOW SLAVE STATUS\G"
+      register: slaveStatus
+      when: inventory_hostname in groups['mysql_slaves']
+
+    - name: 验证复制运行正常
+      assert:
+        that:
+          - "'Waiting for master' in slaveStatus.stdout or ' Slave_IO_Running: Yes' in slaveStatus.stdout"
+          - "' Slave_SQL_Running: Yes' in slaveStatus.stdout"
+        success_msg: "从库 {{ inventory_hostname }} 复制正常运行"
+        fail_msg: "从库 {{ inventory_hostname }} 复制异常，请检查"
+      when: inventory_hostname in groups['mysql_slaves']
+
+    - name: 输出集群部署完成信息
       debug:
-        msg: "MySQL cluster deployed successfully on {{ inventory_hostname }}"
-        
+        msg:
+          - "MySQL 集群部署完成！"
+          - "主库: {{ groups['mysql_masters'] | join(', ') }}"
+          - "从库: {{ groups['mysql_slaves'] | join(', ') }}"
+          - "版本: {{ mysqlVersion }}"
+          - "安装方式: 二进制包"
+
   handlers:
-    - name: Restart MySQL
-      service:
-        name: mysql
+    - name: restart mysql
+      systemd:
+        name: mysqld
         state: restarted
+        daemon_reload: yes
+
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes

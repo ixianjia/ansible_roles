@@ -1,46 +1,47 @@
 #!/bin/bash
-
-# MySQL Backup Cleanup Script
-# Usage: ./cleanup_backups.sh
-
+#
+# MySQL 备份清理脚本
+# 清理超过保留期限的旧备份文件
+#
 set -e
 
-# Configuration
+# ── 配置 ──────────────────────────────────
 BACKUP_DIR="/backup/mysql"
 RETENTION_DAYS=7
 LOG_FILE="/var/log/mysql/cleanup_backups.log"
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Logging function
+# ── 函数 ──────────────────────────────────
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-# Check if backup directory exists
+# ── 主流程 ────────────────────────────────
 if [ ! -d "$BACKUP_DIR" ]; then
-    log "Backup directory $BACKUP_DIR does not exist"
+    log "备份目录 $BACKUP_DIR 不存在，跳过清理"
     exit 0
 fi
 
-# Clean up old mysqldump backups
-log "Starting cleanup of MySQL backups older than $RETENTION_DAYS days"
+log "开始清理 $RETENTION_DAYS 天前的 MySQL 备份"
 
-# Find and remove old mysqldump backups
-find "$BACKUP_DIR" -name "mysqldump_full_*.tar.gz" -mtime +$RETENTION_DAYS -print -delete | while read file; do
-    log "Deleted old backup: $file"
+# 清理 mysqldump 备份
+find "$BACKUP_DIR" -name "mysqldump_full_*.tar.gz" -mtime +$RETENTION_DAYS -print -delete | while read -r file; do
+    log "删除: $(basename "$file")"
 done
 
-# Find and remove old xtrabackup directories
-find "$BACKUP_DIR" -name "xtrabackup_*" -mtime +$RETENTION_DAYS -type d -exec rm -rf {} + 2>/dev/null || true
-log "Cleaned up old xtrabackup directories"
+# 清理 xtrabackup 全量备份包
+find "$BACKUP_DIR" -name "xtrabackup_full_*.tar.gz" -mtime +$RETENTION_DAYS -print -delete | while read -r file; do
+    log "删除: $(basename "$file")"
+done
 
-# Remove empty directories
+# 清理遗留的备份目录
+find "$BACKUP_DIR" -maxdepth 1 -type d -name "xtrabackup_*" -mtime +$RETENTION_DAYS -exec rm -rf {} + 2>/dev/null || true
+find "$BACKUP_DIR" -maxdepth 1 -type d -name "mysqldump_*" -mtime +$RETENTION_DAYS -exec rm -rf {} + 2>/dev/null || true
+
+# 清理空目录
 find "$BACKUP_DIR" -type d -empty -delete 2>/dev/null || true
-log "Cleaned up empty directories"
 
-# Calculate disk space
 DISK_USAGE=$(du -sh "$BACKUP_DIR" | cut -f1)
-log "Current backup disk usage: $DISK_USAGE"
-
-log "MySQL backup cleanup completed successfully"
+log "清理完成，备份目录总用量: $DISK_USAGE"
 
 exit 0

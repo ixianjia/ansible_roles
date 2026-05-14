@@ -1,3 +1,17 @@
 #SPDX-License-Identifier: MIT-0
-localhost
+# MySQL 集群测试用 Inventory
+# 使用前请替换实际 IP 地址
 
+[mysql_masters]
+master1 ansible_host=192.168.1.10
+
+[mysql_slaves]
+slave1 ansible_host=192.168.1.11
+slave2 ansible_host=192.168.1.12
+
+[mysql_cluster:children]
+mysql_masters
+mysql_slaves
+
+[mysql_backup]
+backup1 ansible_host=192.168.1.20

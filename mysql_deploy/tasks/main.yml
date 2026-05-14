@@ -1,33 +1,164 @@
 #SPDX-License-Identifier: MIT-0
 ---
-- name: Install MySQL server
-  package:
-    name: 
-      - mysql-server
-      - mysql-client
-      - rsync
-      - percona-xtrabackup
+- name: 创建 mysql 组
+  group:
+    name: mysql
+    gid: 3306
     state: present
 
-- name: Create MySQL data directory
+- name: 创建 mysql 用户
+  user:
+    name: mysql
+    uid: 3306
+    group: mysql
+    shell: /sbin/nologin
+    create_home: no
+    state: present
+
+- name: 安装依赖包
+  package:
+    name:
+      - libaio1
+      - libaio-dev
+      - numactl
+      - rsync
+      - perl
+      - pv
+      - tar
+      - xz-utils
+    state: present
+
+- name: 创建 MySQL 运行目录
   file:
-    path: /var/lib/mysql
+    path: "{{ item }}"
     state: directory
     owner: mysql
     group: mysql
     mode: '0755'
+  loop:
+    - "{{ mysqlDataDir }}"
+    - "{{ mysqlLogDir }}"
+    - "{{ mysqlRunDir }}"
+    - "{{ mysqlTmpDir }}"
 
-- name: Copy MySQL configuration
+- name: 上传 MySQL 二进制包
+  copy:
+    src: "{{ mysqlBinaryPackage }}"
+    dest: "/tmp/{{ mysqlBinaryPackage }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: 解压 MySQL 二进制包
+  unarchive:
+    src: "/tmp/{{ mysqlBinaryPackage }}"
+    dest: /usr/local
+    owner: root
+    group: root
+    remote_src: yes
+    creates: "/usr/local/{{ mysqlDirName }}/bin/mysqld"
+
+- name: 清理上传的压缩包
+  file:
+    path: "/tmp/{{ mysqlBinaryPackage }}"
+    state: absent
+
+- name: 创建 MySQL 软链接
+  file:
+    src: "/usr/local/{{ mysqlDirName }}"
+    dest: "{{ mysqlBaseDir }}"
+    state: link
+
+- name: 写入 MySQL 环境变量
+  copy:
+    dest: /etc/profile.d/mysql.sh
+    content: |
+      export PATH={{ mysqlBaseDir }}/bin:$PATH
+      export MANPATH={{ mysqlBaseDir }}/man:$MANPATH
+    mode: '0644'
+
+- name: 下发 MySQL 配置文件
   template:
     src: my.cnf.j2
-    dest: /etc/mysql/my.cnf
+    dest: /etc/my.cnf
     owner: root
     group: root
     mode: '0644'
   notify: restart mysql
 
-- name: Start MySQL service
-  service:
-    name: mysql
+- name: 初始化 MySQL 数据目录
+  command: >
+    {{ mysqlBaseDir }}/bin/mysqld
+    --initialize
+    --user=mysql
+    --basedir={{ mysqlBaseDir }}
+    --datadir={{ mysqlDataDir }}
+  args:
+    creates: "{{ mysqlDataDir }}/auto.cnf"
+  register: mysqlInit
+
+- name: 提取临时 root 密码
+  shell: >
+    awk '/temporary password/{p=$NF} END{print p}' {{ mysqlLogDir }}/error.log
+  register: mysqlTempPass
+  when: mysqlInit.changed
+  changed_when: false
+
+- name: 保存临时密码到文件
+  copy:
+    content: "{{ mysqlTempPass.stdout }}\n"
+    dest: /root/.mysql_temp_password
+    mode: '0600'
+  when: mysqlInit.changed
+
+- name: 下发 systemd 服务单元
+  template:
+    src: mysql.service.j2
+    dest: /etc/systemd/system/mysqld.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+
+- name: 启动 MySQL 服务
+  systemd:
+    name: mysqld
     state: started
     enabled: yes
+    daemon_reload: yes
+
+- name: 等待 MySQL 就绪
+  wait_for:
+    port: "{{ mysqlPort }}"
+    host: "127.0.0.1"
+    timeout: 60
+    delay: 5
+
+- name: 修改 root 密码
+  shell: |
+    tmp_pass=$(cat /root/.mysql_temp_password)
+    {{ mysqlBaseDir }}/bin/mysql --connect-expired-password \
+      -u root -p"$tmp_pass" \
+      -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysqlRootPassword }}';" \
+      -e "ALTER USER 'root'@'localhost' PASSWORD EXPIRE NEVER;"
+    rm -f /root/.mysql_temp_password
+  when: mysqlInit.changed
+
+- name: 删除匿名用户
+  mysql_user:
+    name: ''
+    host_all: yes
+    state: absent
+    login_user: root
+    login_password: "{{ mysqlRootPassword }}"
+    login_unix_socket: "{{ mysqlRunDir }}/mysqld.sock"
+  when: mysqlInit.changed
+
+- name: 删除测试数据库
+  mysql_db:
+    name: test
+    state: absent
+    login_user: root
+    login_password: "{{ mysqlRootPassword }}"
+    login_unix_socket: "{{ mysqlRunDir }}/mysqld.sock"
+  when: mysqlInit.changed

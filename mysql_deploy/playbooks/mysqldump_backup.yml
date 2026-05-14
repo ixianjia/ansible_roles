@@ -1,51 +1,50 @@
 ---
-- name: Configure MySQL mysqldump Backup
+- name: 配置 MySQL mysqldump 逻辑备份
   hosts: mysql_backup
   become: yes
   vars:
-    mysql_root_password: "{{ lookup('env', 'MYSQL_ROOT_PASSWORD') | default('secure_root_password') }}"
-    backup_dir: "/backup/mysql"
-    backup_retention_days: 7
-    backup_databases: []
-    backup_exclude_databases: ["information_schema", "performance_schema", "mysql", "sys"]
-    backup_compression: true
-    backup_email: "admin@example.com"
-    
+    mysqlBaseDir: "/usr/local/mysql"
+    mysqlRootPassword: "{{ lookup('env', 'MYSQL_ROOT_PASSWORD') | default('secure_root_password') }}"
+    backupDir: "/backup/mysql"
+    backupRetentionDays: 7
+    backupCompression: true
+    backupEmail: "admin@example.com"
+
   tasks:
-    - name: Create backup directory
+    - name: 创建备份目录
       file:
-        path: "{{ backup_dir }}"
+        path: "{{ backupDir }}"
         state: directory
         owner: root
         group: root
         mode: '0755'
-        
-    - name: Create backup user
+
+    - name: 创建备份用户
       mysql_user:
         name: "backup_user"
         password: "backup_password"
-        priv: "SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON *.* TO 'backup_user'@'localhost'"
+        priv: "SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON *.*"
         host: localhost
         login_user: root
-        login_password: "{{ mysql_root_password }}"
-        
-    - name: Install backup dependencies
-      apt:
+        login_password: "{{ mysqlRootPassword }}"
+        login_unix_socket: "{{ mysqlRunDir | default('/var/run/mysqld') }}/mysqld.sock"
+
+    - name: 安装备份依赖
+      package:
         name:
-          - mysql-client
           - gzip
           - mailutils
         state: present
-        
-    - name: Create mysqldump backup script
+
+    - name: 生成 mysqldump 备份脚本
       template:
         src: mysqldump_backup.sh.j2
         dest: "/usr/local/bin/mysqldump_backup.sh"
         owner: root
         group: root
         mode: '0755'
-        
-    - name: Create cron job for mysqldump backup
+
+    - name: 添加 mysqldump 备份定时任务（每天 2:00）
       cron:
         name: "MySQL mysqldump backup"
         job: "/usr/local/bin/mysqldump_backup.sh"
@@ -53,16 +52,16 @@
         hour: "2"
         user: root
         cron_file: mysql_mysqldump_backup
-        
-    - name: Create cleanup script
+
+    - name: 生成备份清理脚本
       template:
         src: cleanup_backups.sh.j2
         dest: "/usr/local/bin/cleanup_backups.sh"
         owner: root
         group: root
         mode: '0755'
-        
-    - name: Create cleanup cron job
+
+    - name: 添加清理定时任务（每天 3:30）
       cron:
         name: "MySQL backup cleanup"
         job: "/usr/local/bin/cleanup_backups.sh"
@@ -70,16 +69,17 @@
         hour: "3"
         user: root
         cron_file: mysql_backup_cleanup
-        
-    - name: Test backup script
+
+    - name: 测试备份脚本
       command: "/usr/local/bin/mysqldump_backup.sh"
-      register: backup_test
+      register: backupTest
       changed_when: false
-      
-    - name: Display backup test result
+      ignore_errors: yes
+
+    - name: 输出备份测试结果
       debug:
-        msg: "Backup test result: {{ backup_test.stdout }}"
-        
+        msg: "备份测试结果: {{ backupTest.stdout | default('执行失败，请检查日志') }}"
+
   handlers:
     - name: restart cron
       service:
