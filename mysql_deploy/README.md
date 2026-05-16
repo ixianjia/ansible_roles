@@ -5,8 +5,6 @@
 - [快速开始](#快速开始)
 - [项目概述](#项目概述)
 - [环境要求](#环境要求)
-- [准备工作](#准备工作)
-- [快速部署](#快速部署)
 - [Playbook 详解](#playbook-详解)
 - [二进制部署原理](#二进制部署原理)
 - [配置详解](#配置详解)
@@ -98,97 +96,11 @@ ansible mysql_cluster -i my_inventory -m shell -a \
 
 ## 环境要求
 
-### 管理节点
+- **管理节点**：Ansible 2.2+、Python 3
+- **目标节点**：Ubuntu 20.04+ / Debian 11+ / CentOS 7+，需安装 `libaio1 numactl rsync tar xz-utils`
+- **MySQL 二进制包**：从 MySQL 官网下载 Linux 通用包（如 `mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz`）
 
-- Ansible 2.2+
-- Python 3
-
-### 目标节点
-
-- 操作系统：Ubuntu 20.04+ / Debian 11+ / CentOS 7+
-- 依赖包：libaio1, libaio-dev, numactl, rsync, tar, xz-utils
-- MySQL 二进制包（`mysql-VERSION-linux-glibc2.12-x86_64.tar.xz`）
-
-### 主机组定义
-
-Inventory 需定义以下组：
-
-```ini
-[mysql_masters]
-master1 ansible_host=192.168.1.10
-
-[mysql_slaves]
-slave1 ansible_host=192.168.1.11
-slave2 ansible_host=192.168.1.12
-
-[mysql_cluster:children]
-mysql_masters
-mysql_slaves
-
-[mysql_backup]
-backup1 ansible_host=192.168.1.20
-```
-
----
-
-## 准备工作
-
-### 1. 下载 MySQL 二进制包
-
-从 MySQL 官网下载 Linux 通用二进制包：
-
-```bash
-# 示例: MySQL 8.0.36
-wget https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz
-```
-
-### 2. 将二进制包放入角色 files/ 目录
-
-```
-mysql_deploy/playbooks/roles/mysql_deploy/files/mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz
-```
-
-### 3. 配置变量
-
-编辑 `playbooks/roles/mysql_deploy/defaults/main.yml`，主要关注：
-
-```yaml
-# 版本和包名（与 files/ 目录下的文件一致）
-mysqlVersion: "8.0.36"
-mysqlBinaryPackage: "mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz"
-mysqlDirName: "mysql-8.0.36-linux-glibc2.12-x86_64"
-
-# 密码（生产环境必改）
-mysqlRootPassword: "your_strong_password"
-mysqlReplicationPassword: "your_replication_password"
-```
-
----
-
-## 快速部署
-
-### 部署 MySQL 主从集群
-
-```bash
-# 从 ansibleroles 项目根目录执行
-ansible-playbook -i mysql_deploy/tests/inventory mysql_deploy/playbooks/deploy_cluster.yml
-```
-
-> 角色代码位于 `playbooks/roles/mysql_deploy/`，Ansible 自动从 playbook 所在目录的 `roles/` 下查找，无需额外配置 `roles_path`。
-
-### 配置备份
-
-```bash
-# mysqldump 逻辑备份
-ansible-playbook -i mysql_deploy/tests/inventory mysql_deploy/playbooks/mysqldump_backup.yml
-
-# XtraBackup 物理备份
-ansible-playbook -i mysql_deploy/tests/inventory mysql_deploy/playbooks/xtrabackup_backup.yml
-```
-
-> **注意**: 实际使用请替换 `tests/inventory` 为真实的 inventory 文件。
-
----
+Invenotry 需定义 `[mysql_masters]`、`[mysql_slaves]`、`[mysql_cluster:children]` 和可选的 `[mysql_backup]` 组（格式参考[快速开始](#快速开始)）。
 
 ## Playbook 详解
 
