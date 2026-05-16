@@ -7,9 +7,16 @@
     mysqlRootPassword: "secure_root_password"
     mysqlReplicationUser: "replicator"
     mysqlReplicationPassword: "replication_password"
+    mysqlBaseDir: "/usr/local/mysql"
     mysqlDataDir: "/var/lib/mysql"
-    mysqlPort: 3306
+    mysqlLogDir: "/var/log/mysql"
     mysqlRunDir: "/var/run/mysqld"
+    mysqlTmpDir: "/tmp"
+    mysqlPort: 3306
+    mysqlBindAddress: "0.0.0.0"
+    mysqlInnodbBufferPoolSize: "1G"
+    mysqlInnodbLogFileSize: "256M"
+    mysqlMaxConnections: 200
 
   tasks:
     - name: 导入 MySQL 二进制部署任务

@@ -4,8 +4,8 @@
       "name": "admin",
       "credentials": [
         {
-          "accessKey": "AKIAIOSFODNN7EXAMPLE",
-          "secretKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          "accessKey": "{{ s3_admin_access_key }}",
+          "secretKey": "{{ s3_admin_secret_key }}",
           "actions": ["Admin", "Read", "Write"]
         }
       ]
@@ -14,8 +14,8 @@
       "name": "readonly",
       "credentials": [
         {
-          "accessKey": "AKIAIREADONLYKEY",
-          "secretKey": "readonlysecretkey123",
+          "accessKey": "{{ s3_readonly_access_key }}",
+          "secretKey": "{{ s3_readonly_secret_key }}",
           "actions": ["Read"]
         }
       ]
@@ -24,8 +24,8 @@
       "name": "writeonly",
       "credentials": [
         {
-          "accessKey": "AKIAIWRITEONLYKEY",
-          "secretKey": "writeonlysecretkey456",
+          "accessKey": "{{ s3_writeonly_access_key }}",
+          "secretKey": "{{ s3_writeonly_secret_key }}",
           "actions": ["Write"]
         }
       ]

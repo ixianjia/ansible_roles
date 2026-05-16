@@ -30,6 +30,12 @@ jwt_write_signing_key: "change-me-write-key-256bit"
 # S3 配置
 s3_domain: s3.example.com
 s3_config_path: /etc/seaweedfs/s3.json
+s3_admin_access_key: "AKIAIOSFODNN7EXAMPLE"
+s3_admin_secret_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+s3_readonly_access_key: "AKIAIREADONLYKEY"
+s3_readonly_secret_key: "readonlysecretkey123"
+s3_writeonly_access_key: "AKIAIWRITEONLYKEY"
+s3_writeonly_secret_key: "writeonlysecretkey456"
 
 # TLS
 tls_enabled: true
