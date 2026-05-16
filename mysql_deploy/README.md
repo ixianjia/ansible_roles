@@ -82,15 +82,15 @@ backup1 ansible_host=192.168.1.20
 wget https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz
 ```
 
-### 2. 将二进制包放入 files/ 目录
+### 2. 将二进制包放入角色 files/ 目录
 
 ```
-mysql_deploy/files/mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz
+mysql_deploy/playbooks/roles/mysql_deploy/files/mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz
 ```
 
 ### 3. 配置变量
 
-编辑 `defaults/main.yml`，主要关注：
+编辑 `playbooks/roles/mysql_deploy/defaults/main.yml`，主要关注：
 
 ```yaml
 # 版本和包名（与 files/ 目录下的文件一致）
@@ -114,12 +114,7 @@ mysqlReplicationPassword: "your_replication_password"
 ansible-playbook -i mysql_deploy/tests/inventory mysql_deploy/playbooks/deploy_cluster.yml
 ```
 
-如果 roles_path 未配置，增加：
-
-```bash
-ansible-playbook -i mysql_deploy/tests/inventory mysql_deploy/playbooks/deploy_cluster.yml \
-  --extra-vars "ansible_roles_path=$(pwd)"
-```
+> 角色代码位于 `playbooks/roles/mysql_deploy/`，Ansible 自动从 playbook 所在目录的 `roles/` 下查找，无需额外配置 `roles_path`。
 
 ### 配置备份
 
@@ -141,7 +136,7 @@ ansible-playbook -i mysql_deploy/tests/inventory mysql_deploy/playbooks/xtraback
 
 该 playbook 包含 **20 个步骤**，分为两个阶段：
 
-#### 阶段一：二进制安装（import 自 tasks/main.yml）
+#### 阶段一：二进制安装（通过 `roles:` 引入）
 
 | 步骤 | 操作 | 说明 |
 |------|------|------|
@@ -423,8 +418,8 @@ START SLAVE;
 ### 升级 MySQL 版本
 
 ```bash
-# 1. 下载新版二进制包到 files/
-# 2. 修改 defaults/main.yml
+# 1. 下载新版二进制包到 playbooks/roles/mysql_deploy/files/
+# 2. 修改 playbooks/roles/mysql_deploy/defaults/main.yml
 mysqlVersion: "8.0.37"
 mysqlBinaryPackage: "mysql-8.0.37-linux-glibc2.12-x86_64.tar.xz"
 mysqlDirName: "mysql-8.0.37-linux-glibc2.12-x86_64"
@@ -440,7 +435,7 @@ ansible-playbook -i inventory playbooks/deploy_cluster.yml
 1. **修改默认密码**：`mysqlRootPassword` 和 `mysqlReplicationPassword`
 2. **使用 Ansible Vault** 加密敏感变量：
    ```bash
-   ansible-vault encrypt defaults/main.yml
+   ansible-vault encrypt playbooks/roles/mysql_deploy/defaults/main.yml
    ansible-playbook --ask-vault-pass playbooks/deploy_cluster.yml
    ```
 3. **生产环境建议**：
@@ -537,7 +532,7 @@ tail -50 /var/log/mysql/cleanup_backups.log
 
 ### Q5: 如何修改备份时间
 
-修改 `defaults/main.yml` 中的 cron 表达式：
+修改 `playbooks/roles/mysql_deploy/defaults/main.yml` 中的 cron 表达式：
 
 ```yaml
 backupMysqldumpSchedule: "0 2 * * *"    # 每天 2:00
