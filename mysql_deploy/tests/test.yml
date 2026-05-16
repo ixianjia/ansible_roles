@@ -30,11 +30,11 @@
       stat:
         path: "{{ item }}"
       loop:
-        - templates/my.cnf.j2
-        - templates/mysql.service.j2
-        - templates/mysqldump_backup.sh.j2
-        - templates/xtrabackup_backup.sh.j2
-        - templates/cleanup_backups.sh.j2
+        - playbooks/roles/mysql_deploy/templates/my.cnf.j2
+        - playbooks/roles/mysql_deploy/templates/mysql.service.j2
+        - playbooks/roles/mysql_deploy/templates/mysqldump_backup.sh.j2
+        - playbooks/roles/mysql_deploy/templates/xtrabackup_backup.sh.j2
+        - playbooks/roles/mysql_deploy/templates/cleanup_backups.sh.j2
 
     - name: 测试 5 - 检查 playbook 文件是否存在
       stat:
@@ -67,11 +67,11 @@
         mysqlReplicationUser: "replicator"
         mysqlReplicationPassword: "replication_password"
       loop:
-        - { src: "templates/my.cnf.j2", dest: "/tmp/test_my.cnf" }
-        - { src: "templates/mysql.service.j2", dest: "/tmp/test_mysql.service" }
-        - { src: "templates/mysqldump_backup.sh.j2", dest: "/tmp/test_mysqldump_backup.sh" }
-        - { src: "templates/xtrabackup_backup.sh.j2", dest: "/tmp/test_xtrabackup_backup.sh" }
-        - { src: "templates/cleanup_backups.sh.j2", dest: "/tmp/test_cleanup_backups.sh" }
+        - { src: "../playbooks/roles/mysql_deploy/templates/my.cnf.j2", dest: "/tmp/test_my.cnf" }
+        - { src: "../playbooks/roles/mysql_deploy/templates/mysql.service.j2", dest: "/tmp/test_mysql.service" }
+        - { src: "../playbooks/roles/mysql_deploy/templates/mysqldump_backup.sh.j2", dest: "/tmp/test_mysqldump_backup.sh" }
+        - { src: "../playbooks/roles/mysql_deploy/templates/xtrabackup_backup.sh.j2", dest: "/tmp/test_xtrabackup_backup.sh" }
+        - { src: "../playbooks/roles/mysql_deploy/templates/cleanup_backups.sh.j2", dest: "/tmp/test_cleanup_backups.sh" }
 
     - name: 测试 7 - 检查生成的文件
       stat:

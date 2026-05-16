@@ -7,21 +7,11 @@
     mysqlRootPassword: "secure_root_password"
     mysqlReplicationUser: "replicator"
     mysqlReplicationPassword: "replication_password"
-    mysqlBaseDir: "/usr/local/mysql"
-    mysqlDataDir: "/var/lib/mysql"
-    mysqlLogDir: "/var/log/mysql"
-    mysqlRunDir: "/var/run/mysqld"
-    mysqlTmpDir: "/tmp"
-    mysqlPort: 3306
-    mysqlBindAddress: "0.0.0.0"
-    mysqlInnodbBufferPoolSize: "1G"
-    mysqlInnodbLogFileSize: "256M"
-    mysqlMaxConnections: 200
+
+  roles:
+    - mysql_deploy
 
   tasks:
-    - name: 导入 MySQL 二进制部署任务
-      import_tasks: ../tasks/main.yml
-
     # ──────────────────────────────────────────
     # 主从复制配置
     # ──────────────────────────────────────────
@@ -39,7 +29,7 @@
 
     - name: 获取主库 binlog 状态
       command: >
-        {{ mysqlBaseDir | default('/usr/local/mysql') }}/bin/mysql
+        {{ mysqlBaseDir }}/bin/mysql
         -u root -p'{{ mysqlRootPassword }}'
         -e "SHOW MASTER STATUS\G"
       register: masterStatus
@@ -81,7 +71,7 @@
 
     - name: 检查从库复制状态
       command: >
-        {{ mysqlBaseDir | default('/usr/local/mysql') }}/bin/mysql
+        {{ mysqlBaseDir }}/bin/mysql
         -u root -p'{{ mysqlRootPassword }}'
         -e "SHOW SLAVE STATUS\G"
       register: slaveStatus
@@ -104,14 +94,3 @@
           - "从库: {{ groups['mysql_slaves'] | join(', ') }}"
           - "版本: {{ mysqlVersion }}"
           - "安装方式: 二进制包"
-
-  handlers:
-    - name: restart mysql
-      systemd:
-        name: mysqld
-        state: restarted
-        daemon_reload: yes
-
-    - name: reload systemd
-      systemd:
-        daemon_reload: yes

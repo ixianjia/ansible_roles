@@ -42,7 +42,7 @@
 
     - name: 生成 XtraBackup 备份脚本
       template:
-        src: xtrabackup_backup.sh.j2
+        src: roles/mysql_deploy/templates/xtrabackup_backup.sh.j2
         dest: "/usr/local/bin/xtrabackup_backup.sh"
         owner: root
         group: root

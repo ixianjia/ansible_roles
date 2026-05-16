@@ -38,7 +38,7 @@
 
     - name: 生成 mysqldump 备份脚本
       template:
-        src: mysqldump_backup.sh.j2
+        src: roles/mysql_deploy/templates/mysqldump_backup.sh.j2
         dest: "/usr/local/bin/mysqldump_backup.sh"
         owner: root
         group: root
@@ -55,7 +55,7 @@
 
     - name: 生成备份清理脚本
       template:
-        src: cleanup_backups.sh.j2
+        src: roles/mysql_deploy/templates/cleanup_backups.sh.j2
         dest: "/usr/local/bin/cleanup_backups.sh"
         owner: root
         group: root
