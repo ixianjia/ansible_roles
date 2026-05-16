@@ -2,6 +2,7 @@
 
 ## 目录
 
+- [快速开始](#快速开始)
 - [项目概述](#项目概述)
 - [环境要求](#环境要求)
 - [准备工作](#准备工作)
@@ -13,6 +14,65 @@
 - [维护操作](#维护操作)
 - [测试](#测试)
 - [常见问题](#常见问题)
+
+---
+
+## 快速开始
+
+从零部署一个 MySQL 8.0 主从集群，只需 4 步：
+
+### 1. 准备 inventory
+
+```bash
+cp tests/inventory my_inventory
+# 编辑 my_inventory，替换占位 IP 为真实主机地址
+```
+
+Inventory 至少需要一台 master 和一台 slave：
+
+```ini
+[mysql_masters]
+master1 ansible_host=10.0.1.10
+
+[mysql_slaves]
+slave1 ansible_host=10.0.1.11
+
+[mysql_cluster:children]
+mysql_masters
+mysql_slaves
+```
+
+### 2. 下载 MySQL 二进制包
+
+放入角色 `files/` 目录（路径不要搞错）：
+
+```bash
+wget https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz \
+  -O playbooks/roles/mysql_deploy/files/mysql-8.0.36-linux-glibc2.12-x86_64.tar.xz
+```
+
+### 3. 配置密码（可选）
+
+不配则使用默认占位密码（生产环境**必须**改）。最快捷的方式是通过 `--extra-vars` 传参：
+
+```bash
+ansible-playbook -i my_inventory playbooks/deploy_cluster.yml \
+  --extra-vars "mysqlRootPassword=MyStr0ng!Pass mysqlReplicationPassword=Rep1!Pass"
+```
+
+### 4. 部署
+
+```bash
+ansible-playbook -i my_inventory playbooks/deploy_cluster.yml
+```
+
+部署完成后会自动输出主从列表和复制状态。检查确认：
+
+```bash
+ansible mysql_cluster -i my_inventory -m shell -a \
+  "/usr/local/mysql/bin/mysql -u root -p'MyStr0ng!Pass' -e \"SHOW SLAVE STATUS\G\"" \
+  --limit mysql_slaves
+```
 
 ---
 
